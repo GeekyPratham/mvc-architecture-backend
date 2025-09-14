@@ -1,0 +1,183 @@
+
+const Account = require("../models/account")
+const User = require("../models/user")
+const zod = require("zod");
+const jwt = require("jsonwebtoken")
+const {JWT_SECRET} = require("../config.js")
+// for input zod validation for signUp routes
+const signUpSchema = zod.object({
+    userName:zod.string().email(),
+    password:zod.string(),
+    firstName:zod.string(),
+    lastName:zod.string(),
+})
+
+async function handleUserSignUp(req,res){
+    // console.log(req.body);
+    console.log("i am in backend signup")
+    const body = req.body;
+    console.log(req.body);
+
+    // checking for input validation
+    const {success} = signUpSchema.safeParse(body)
+    console.log(success)
+
+    // if your input is incorrect
+    if(!success){
+        return res.status(411).json({
+    
+            msg:" Incorrect input"
+        })
+    }
+
+    // if success is true then we will find it in database as user  exist or not 
+    
+    const user = await User.findOne({
+        username:body.userName
+    })
+    // if the user exists 
+    console.log(user)
+    
+    if(user){
+        console.log("email already taken")
+        return res.status(411).json({
+            message:"Email already taken "
+        })
+    }
+
+    // if user does not exist create the user 
+    console.log("creating the user: ")
+    const dbUser = await User.create({
+        username:req.body.userName,
+        password:req.body.password,
+        firstname:req.body.firstName,
+        lastname:req.body.lastName,
+    });
+    console.log("user get created:")
+    // create/ signed the  unque token for the all the user
+
+    const userId = dbUser._id;
+
+    // create a new account and give them some amount
+
+    await Account.create({
+        userId,
+        balance: 1 + Math.random()*10000,
+    })
+
+    const token = jwt.sign({
+        userId
+    },JWT_SECRET)
+
+
+    res.json({
+        message:"user created successfully",
+        token:token,
+    })
+}
+
+const signInSchema = zod.object({
+    username:zod.string().email(),
+    password:zod.string(),
+})
+
+async function handleUserSignIn(req,res) {
+    const body = req.body;
+    console.log(body.username)
+    console.log(body.password)
+    const {success} = signInSchema.safeParse(body);
+    
+    if(!success){
+        console.log("input data is incorrect")
+        return res.status(411).json({
+            message:"email already take / Incorrect input"
+        })
+    }
+
+    const user = await User.findOne({
+         username: req.body.username,
+         password: req.body.password
+    })
+
+    if(user){
+        const token = jwt.sign({
+            userId:user._id
+        },JWT_SECRET)
+
+        return res.json({
+            msg:"signin successfully",
+            token:token
+        })
+    }
+    console.log("not valid user")
+    return res.status(411).json({
+        msg:"error while login "
+    })
+}
+
+
+const updateSchema = zod.object({
+    password:zod.string().optional(),
+    firstName:zod.string().optional(),
+    lastName:zod.string().optional()
+})
+
+async function handleUpdateUserInfo(req,res){
+    console.log("zod validation start")
+    const { success } = updateSchema.safeParse(req.body);
+    if (!success) {
+        return res.status(411).json({
+            message: "error while updating information"
+        });
+    }
+    
+    console.log("zod validation clear")
+
+    // Update the user's information by their userId
+    const result = await User.updateOne(
+        { _id: req.userId },  // Use userId (or _id) as the query filter
+        { $set: req.body }    // Use $set to specify the fields to update
+    );
+
+    if (result.modifiedCount === 0) {
+        return res.status(400).json({
+            message: "No changes made or user not found"
+        });
+    }
+
+    res.json({
+        msg: "user updated successfully"
+    });
+}
+
+async function handleGettingAllUser(req,res){
+     const filter = req.query.filter || "";
+    
+    const users = await User.find({
+        $or: [{
+            firstname: {
+                "$regex": filter
+            }
+        }, {
+            lastname: {
+                "$regex": filter
+            }
+        }]
+    })
+
+    res.json({
+        user: users.map(user => ({
+            userName: user.username,
+            firstName: user.firstname,
+            lastName: user.lastname,
+            _id: user._id
+        }))
+    })
+}
+
+module.exports={
+    handleUserSignUp,
+    handleUserSignIn,
+    handleUpdateUserInfo,
+    handleGettingAllUser
+}
