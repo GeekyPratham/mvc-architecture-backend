@@ -115,11 +115,6 @@ This is a Node.js backend project following the MVC architecture. It uses Expres
   Authorization: Bearer <token>
   ```
 
-## Notes
-
-- Make sure MongoDB is running and accessible via your connection string.
-- Passwords are stored as plain text for demo purposes. Use hashing in production.
-- Input validation is handled using Zod.
 
 ---
 
